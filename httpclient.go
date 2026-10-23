@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"crypto/tls"
 	"io"
 	"math"
 	"net/http"
@@ -9,6 +10,17 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/tomnomnom/linkheader"
 )
+
+// NewInsecureClient returns a Client that skips TLS certificate verification, for staging hosts.
+func NewInsecureClient() *Client {
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	return NewClient(&http.Client{Timeout: 60 * time.Second, Transport: tr})
+}
+
+// logRequest records each outgoing request, including its headers, for debugging.
+func logRequest(req *http.Request) {
+	log.Infof("request %s %s headers=%v", req.Method, req.URL, req.Header)
+}
 
 // HTTPDoer is the interface for the underlying HTTP client. *http.Client satisfies it.
 type HTTPDoer interface {
