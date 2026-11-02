@@ -22,6 +22,18 @@ const (
 	headerRateRemaining = "X-RateLimit-Remaining"
 )
 
+const maxServerRetryDelay = time.Minute
+
+func retryDelay(seconds int64) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	if seconds > int64(maxServerRetryDelay/time.Second) {
+		return maxServerRetryDelay
+	}
+	return time.Duration(seconds) * time.Second
+}
+
 // statusOK returns an HTTPResponse with the data from response.
 func statusOK(resp *http.Response) (HTTPResponse, error) {
 	body, err := ioutil.ReadAll(resp.Body)
@@ -64,7 +76,7 @@ func statusTooManyRequests(resp *http.Response, expBackoffAttempts int) (int, er
 		if err != nil {
 			log.Warn(err)
 		}
-		time.Sleep(time.Second * time.Duration(secondsAfterRetry))
+		time.Sleep(retryDelay(int64(secondsAfterRetry)))
 		return expBackoffAttempts, nil
 	}
 	// Calculate ExpBackoff
@@ -86,7 +98,7 @@ func statusForbidden(resp *http.Response, expBackoffAttempts int) (int, error) {
 		if err != nil {
 			log.Warn(err)
 		}
-		time.Sleep(time.Second * time.Duration(secondsAfterRetry))
+		time.Sleep(retryDelay(int64(secondsAfterRetry)))
 		return expBackoffAttempts, nil
 	}
 
@@ -109,7 +121,7 @@ func statusForbidden(resp *http.Response, expBackoffAttempts int) (int, error) {
 			}
 			secondsAfterRetry := int64(retryEpoch) - time.Now().Unix()
 			log.Infof("Waiting %s seconds for %s. (The difference between header %s and time.Now())", strconv.FormatInt(secondsAfterRetry, 10), headerRateReset, reset)
-			time.Sleep(time.Second * time.Duration(secondsAfterRetry))
+			time.Sleep(retryDelay(secondsAfterRetry))
 			return expBackoffAttempts, nil
 		}
 	}
