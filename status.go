@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -20,11 +21,13 @@ const (
 	headerRetryAfter    = "Retry-After"
 	headerRateReset     = "X-RateLimit-Reset"
 	headerRateRemaining = "X-RateLimit-Remaining"
+
+	maxResponseBodySize = 16 << 20 // 16 MiB
 )
 
 // statusOK returns an HTTPResponse with the data from response.
 func statusOK(resp *http.Response) (HTTPResponse, error) {
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		log.Errorf(err.Error())
 		return HTTPResponse{
@@ -32,6 +35,13 @@ func statusOK(resp *http.Response) (HTTPResponse, error) {
 			Status:  ResponseStatus{Text: resp.Status, Code: resp.StatusCode},
 			Headers: resp.Header,
 		}, err
+	}
+	if int64(len(body)) > maxResponseBodySize {
+		return HTTPResponse{
+			Body:    nil,
+			Status:  ResponseStatus{Text: resp.Status, Code: resp.StatusCode},
+			Headers: resp.Header,
+		}, fmt.Errorf("response body exceeds %d bytes", maxResponseBodySize)
 	}
 
 	err = resp.Body.Close()
